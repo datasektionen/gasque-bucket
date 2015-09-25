@@ -34,6 +34,15 @@ Skall kunna pausa kön och lägga upp bild / text på sidan.
 Skall kunna stänga kön.
 
 
+### Organisationer ### 
+
+En organisation har en super user.
+Varje organissation består av användare (Se "Admin").
+Events kan skapas av varje användare. 
+Event administrations rättigheter kan delas med andra användare av samma organisation.
+
+Super user kan tillgå och redigera alla organisationens event.
+
 
 
 ### Användare ###
@@ -47,16 +56,35 @@ Skall kunna skriva in namn / smekeknamn som visas med bilden.
 
 Skall kunna skriva en text som visas med bilden. (med ett max antal tecken)
 
+### Event ### 
+Har förinställningar på hur presentationen kan visas.
+Kan bestämma visningstiden för varje bild.
+Kan bestämma en paus bild.
+Sätta max gräns på antal bilder som kan laddas upp.
+
+Kan bestämma vilka dataformat som kan laddas upp (Bild / Video / audio / gif)
+Vid video visning bestämma om ljud skall spelas upp eller inte.
 
 
-### Bilder och kön ###
 
-Skall pusha vilken bild som skall visas på display sidan.
+### Event Kön ###
 
-Med bilden bör namn och titel visas. 
+Huvud uppgiften för event kön är att bestämma vilken bild som ska visas för evenetet. 
+Event kön kan refereras till via ett unikt ID.
 
 Admins kan kringå kön och göra vafan dom vill.
 
+Vid bild byte pushar infromation till regisrerade visnings kanaler (Se "Visnings kanaler")
+
+### Visnings kanaler ### 
+Registerar sig hos event kön. 
+Tar emot information och vad som ska visas i kön.
+Kan få en liten preview på vilken data som skall buffras (Skickar en buffer request till klienten)
+
+
+### Bilder ### 
+
+Med bilden bör namn och titel visas. 
 
 
 
