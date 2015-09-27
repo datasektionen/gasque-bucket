@@ -72,7 +72,16 @@ func (e eventQueue) runEventQueue() {
 	for {
 		select {
 		case  shouldExit := <- e.channels.shouldExitChan:
-			if shouldExit == true { return }
+			if shouldExit == true { 
+				/* Before we close the queue we have to close all the
+                                 * channels
+                                 */
+				for _, channel := range e.displayChannels {
+					close(channel.channel)
+				}
+
+				return 
+			}
 		default:
 		}
 
@@ -97,6 +106,9 @@ func (e eventQueue) runEventQueue() {
 		default:
 		}
 		
+		/* The content sent by the priority channel will always be prioritised
+                 * then the new content and last the content already shown
+                 */
 		if len(e.priorityContent) > 0 {
 			currentContent  = e.priorityContent[0]
 			e.priorityContent = e.priorityContent[1:]
@@ -130,11 +142,14 @@ func (e eventQueue) quePriorityContent(content DisplayContent) {
 }
 
 /* Register a channel to a new display */
-func (e eventQueue) registerDisplay(c chan DisplayContent) {
+func (e eventQueue) registerDisplay() DisplayChannel{
+	c := make(chan DisplayContent)
 	channel := DisplayChannel{e.displayChannelID, c}
 	e.channels.registerDisplayChan <- channel
 
 	e.displayChannelID++
+
+	return channel
 }
 
 /* Exit the queue */
@@ -142,10 +157,13 @@ func (e eventQueue) exit() {
 	e.channels.shouldExitChan <- true
 }
 
-func Display(c chan DisplayContent, name string) {
+func Display(name string, eq eventQueue) {
+	fmt.Println("Registring channel")
+	channel := eq.registerDisplay()
+	fmt.Println(channel)
 	for {
 		var content DisplayContent
-		content = <- c
+		content = <- channel.channel
 		fmt.Println(name, ":", content.path)
 	}
 }
@@ -156,17 +174,13 @@ func main() {
 	img3 := DisplayContent{"img", "/bin/img3", "img3", 5}
 	img4 := DisplayContent{"img", "/bin/img4", "img4", 5}
 
-	myEventQueue := new(eventQueue)
+	var myEventQueue eventQueue
 	myEventQueue.initQueue()
 
 	go myEventQueue.runEventQueue()
 	
-	c1 := make(chan DisplayContent)
-	c2 := make(chan DisplayContent)
-	go Display(c1, "display1")
-	go Display(c2, "display2")
-	myEventQueue.registerDisplay(c1)
-	myEventQueue.registerDisplay(c2)
+	go Display("display1", myEventQueue)
+	go Display("display2", myEventQueue)
 
 	myEventQueue.queContent(img1)
 	myEventQueue.queContent(img2)
