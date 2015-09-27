@@ -10,7 +10,7 @@ type DisplayContent struct {
 	fileType string
 	path string
 	desc string
-	duration int
+	duration int //How long is the content intendet to be shown
 }
 
 //Not used at the moment
@@ -48,25 +48,36 @@ type EventQueChannels struct {
  *
  */
 type eventQueue struct {
+	//Struct holding all the channels used to communicate with other threads
 	channels EventQueChannels
-
+	//Content not already shown
 	content         []DisplayContent
-	priorityContent []DisplayContent
+	//Force pushed content intendet to be used by admin
+	priorityContent []DisplayContent 
+	//Content already shown which is stored to be shown again
 	shownContent    []DisplayContent
 
+	// Registred displays
 	displayChannels []DisplayChannel
+	/* Every display will get an unique id incremented by 1 from the last one
+	created */
 	displayChannelID int32
 }
 
 func (e *eventQueue) initQueue() {
+	//Channel used to add new content to the queue
 	e.channels.inputChan             = make(chan DisplayContent, 1024)
+	//Channel used to force push new content to the queue
 	e.channels.priorityChan          = make(chan DisplayContent, 1024)
 	//e.channels.queSettingsChan        = make(chan EventSettings)
+	//Channel used to register new displays which will recieve content
 	e.channels.registerDisplayChan   = make(chan DisplayChannel)
+	//Channel used to unregister a display
 	e.channels.unregisterDisplayChan = make(chan DisplayChannel)
+	//Channel used to send an exit signal to the queue
 	e.channels.shouldExitChan        = make(chan bool)
 
-	e.displayChannelID = 0
+	e.displayChannelID = 0 //Used to give every DisplayChannel an unique id
 }
 
 func (e eventQueue) runEventQueue() {
@@ -78,8 +89,8 @@ func (e eventQueue) runEventQueue() {
 		select {
 		case  shouldExit := <- e.channels.shouldExitChan:
 			if shouldExit == true {
-				/* Before we close the queue we have to close all the
-                                 * channels
+				/* Before we close the queue we have to close all
+                                 * the channels
                                  */
 				for _, channel := range e.displayChannels {
 					channel.closeChannel()
@@ -104,15 +115,17 @@ func (e eventQueue) runEventQueue() {
 		default:
 		}
 
-		// Add new display channels (there should be a way too delete them to
+		/* Add new display channels (there should be a way too delete
+		them to */
 		select {
 		case newChannel := <- e.channels.registerDisplayChan:
 			e.displayChannels = append(e.displayChannels, newChannel)
 		default:
 		}
 
-		/* The content sent by the priority channel will always be prioritised
-                 * then the new content and last the content already shown
+		/* The content sent by the priority channel will always be 
+                 * prioritised then the new content and last the content already
+                 * shown
                  */
 		if len(e.priorityContent) > 0 {
 			currentContent  = e.priorityContent[0]
@@ -125,6 +138,8 @@ func (e eventQueue) runEventQueue() {
 			e.shownContent = e.shownContent[1:]
 		}
 
+		// If currentContent is empty and appended to the queue kittens
+		// will die
 		if currentContent != (DisplayContent{}) {
 			e.shownContent = append(e.shownContent, currentContent)
 
@@ -146,7 +161,10 @@ func (e eventQueue) quePriorityContent(content DisplayContent) {
 	e.channels.priorityChan <- content
 }
 
-/* Register a channel to a new display */
+/* Called from an display to register its existanse to the EventQueue
+ * a DisplayChannel struct will be returned containing the channel and
+ * an unique ID
+ */
 func (e eventQueue) registerDisplay() DisplayChannel{
 	c := make(chan DisplayContent)
 	channel := DisplayChannel{e.displayChannelID, c}
