@@ -25,6 +25,10 @@ type DisplayChannel struct {
 	id int32
 	channel chan DisplayContent
 }
+/* Close the channel contained in a DisplayChannel */
+func (dc DisplayChannel) closeChannel() {
+	close(dc.channel)
+}
 
 /* Struct containing the channels used iternaly by the eventQueue
  * to communicate with the outside world
@@ -77,7 +81,7 @@ func (e eventQueue) runEventQueue() {
                                  * channels
                                  */
 				for _, channel := range e.displayChannels {
-					close(channel.channel)
+					channel.closeChannel()
 				}
 
 				return 
