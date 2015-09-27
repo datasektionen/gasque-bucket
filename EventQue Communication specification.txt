@@ -1,7 +1,6 @@
 Denna lilla sida skissar på vilka kommunikations möjligheter som skall finnas mellan event kö tråden och omvärlden.
 
 
-
 Förslag av Tomas: 
 
 När en event tråd skapas skall det tillsammans med den skapas ett antal "channels" som läggs i någon typ av binärt träd / map. 
@@ -37,6 +36,12 @@ Används iaf exklusivt av admins om de vill ändra på inställningarna för hur
 # queRegisterDisplaychan 
 En input kanal för varje display sida. Till den skickas andra kanaler dit kön skickar data så fort som den har bestämt sig för att mer data ska visas. 
 
-# queShouldExitCahn
+# queShouldExitChan
 Obuffrad.
 Om data skickas till denna kommer kön att stänga ner sig själv. 
+
+
+###########################
+Structs:
+
+#EventSettings

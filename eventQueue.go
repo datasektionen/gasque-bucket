@@ -3,6 +3,9 @@ package main
 import ("fmt"
 	"time")
 
+/* Struct containing information about the media that will be sent to
+ * the displays
+ */
 type DisplayContent struct {
 	fileType string
 	path string
@@ -10,19 +13,35 @@ type DisplayContent struct {
 	duration int
 }
 
+//Not used at the moment
 type EventSettings struct {
 	imageDuration int
 }
 
-type EventQueChannels struct {
-	queInputChan           chan DisplayContent
-	quePriorityChan        chan DisplayContent
-
-	//queSettingsChan        chan EventSettings
-	queReqisterDisplayChan chan (chan DisplayContent)
-	queShouldExitChan      chan bool
+/* Struct containing a DisplayContent channel and an unique id. Used by
+ * the queue to communicate with the displays
+ */
+type DisplayChannel struct {
+	id int32
+	channel chan DisplayContent
 }
 
+/* Struct containing the channels used iternaly by the eventQueue
+ * to communicate with the outside world
+ */
+type EventQueChannels struct {
+	inputChan           chan DisplayContent
+	priorityChan        chan DisplayContent
+
+	//queSettingsChan        chan EventSettings
+	registerDisplayChan   chan DisplayChannel
+	unregisterDisplayChan chan DisplayChannel
+	shouldExitChan        chan bool
+}
+
+/* The eventQueue
+ *
+ */
 type eventQueue struct {
 	channels EventQueChannels
 
@@ -30,45 +49,50 @@ type eventQueue struct {
 	priorityContent []DisplayContent
 	shownContent    []DisplayContent
 
-	displayChannels []chan DisplayContent
+	displayChannels []DisplayChannel
+	displayChannelID int32
 } 
 
 func (e *eventQueue) initQueue() {
-	e.channels.queInputChan           = make(chan DisplayContent, 1024)
-	e.channels.quePriorityChan        = make(chan DisplayContent, 1024)
+	e.channels.inputChan             = make(chan DisplayContent, 1024)
+	e.channels.priorityChan          = make(chan DisplayContent, 1024)
 	//e.channels.queSettingsChan        = make(chan EventSettings)
-	e.channels.queReqisterDisplayChan = make(chan (chan DisplayContent))
-	e.channels.queShouldExitChan      = make(chan bool)
+	e.channels.registerDisplayChan   = make(chan DisplayChannel)
+	e.channels.unregisterDisplayChan = make(chan DisplayChannel)
+	e.channels.shouldExitChan        = make(chan bool)
+
+	e.displayChannelID = 0
 }
 
 func (e eventQueue) runEventQueue() {
 
 	var newContent DisplayContent
 	var currentContent DisplayContent
+	//closedChanIds := []int{}
 	for {
 		select {
-		case  shouldExit := <- e.channels.queShouldExitChan:
+		case  shouldExit := <- e.channels.shouldExitChan:
 			if shouldExit == true { return }
 		default:
 		}
 
 		//Add images from the normal channel
 		select {
-		case newContent = <- e.channels.queInputChan:
+		case newContent = <- e.channels.inputChan:
 			e.content = append(e.content, newContent)
 		default:
 		}
 
 		//Add images from the priority channel
 		select {
-		case newContent = <- e.channels.quePriorityChan:
+		case newContent = <- e.channels.priorityChan:
 			e.priorityContent = append(e.priorityContent, newContent)
 		default:
 		}
 
 		// Add new display channels (there should be a way too delete them to
 		select {
-		case newChannel := <- e.channels.queReqisterDisplayChan:
+		case newChannel := <- e.channels.registerDisplayChan:
 			e.displayChannels = append(e.displayChannels, newChannel)
 		default:
 		}
@@ -88,7 +112,7 @@ func (e eventQueue) runEventQueue() {
 			e.shownContent = append(e.shownContent, currentContent)
 
 			for _, channel := range e.displayChannels {
-				channel <- currentContent
+				channel.channel <- currentContent
 			}
 		}
 		time.Sleep(time.Second * 1)
@@ -97,22 +121,25 @@ func (e eventQueue) runEventQueue() {
 
 /* Add content to the queue */
 func (e eventQueue) queContent(content DisplayContent) {
-	e.channels.queInputChan <- content
+	e.channels.inputChan <- content
 }
 
 /* Force push content to the queue. Mainly intented for admins */
 func (e eventQueue) quePriorityContent(content DisplayContent) {
-	e.channels.quePriorityChan <- content
+	e.channels.priorityChan <- content
 }
 
 /* Register a channel to a new display */
 func (e eventQueue) registerDisplay(c chan DisplayContent) {
-	e.channels.queReqisterDisplayChan <- c
+	channel := DisplayChannel{e.displayChannelID, c}
+	e.channels.registerDisplayChan <- channel
+
+	e.displayChannelID++
 }
 
 /* Exit the queue */
 func (e eventQueue) exit() {
-	e.channels.queShouldExitChan <- true
+	e.channels.shouldExitChan <- true
 }
 
 func Display(c chan DisplayContent, name string) {
