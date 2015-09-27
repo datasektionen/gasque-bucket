@@ -25,6 +25,7 @@ type DisplayChannel struct {
 	id int32
 	channel chan DisplayContent
 }
+
 /* Close the channel contained in a DisplayChannel */
 func (dc DisplayChannel) closeChannel() {
 	close(dc.channel)
@@ -55,7 +56,7 @@ type eventQueue struct {
 
 	displayChannels []DisplayChannel
 	displayChannelID int32
-} 
+}
 
 func (e *eventQueue) initQueue() {
 	e.channels.inputChan             = make(chan DisplayContent, 1024)
@@ -76,7 +77,7 @@ func (e eventQueue) runEventQueue() {
 	for {
 		select {
 		case  shouldExit := <- e.channels.shouldExitChan:
-			if shouldExit == true { 
+			if shouldExit == true {
 				/* Before we close the queue we have to close all the
                                  * channels
                                  */
@@ -84,7 +85,7 @@ func (e eventQueue) runEventQueue() {
 					channel.closeChannel()
 				}
 
-				return 
+				return
 			}
 		default:
 		}
@@ -109,7 +110,7 @@ func (e eventQueue) runEventQueue() {
 			e.displayChannels = append(e.displayChannels, newChannel)
 		default:
 		}
-		
+
 		/* The content sent by the priority channel will always be prioritised
                  * then the new content and last the content already shown
                  */
@@ -159,38 +160,4 @@ func (e eventQueue) registerDisplay() DisplayChannel{
 /* Exit the queue */
 func (e eventQueue) exit() {
 	e.channels.shouldExitChan <- true
-}
-
-func Display(name string, eq eventQueue) {
-	fmt.Println("Registring channel")
-	channel := eq.registerDisplay()
-	fmt.Println(channel)
-	for {
-		var content DisplayContent
-		content = <- channel.channel
-		fmt.Println(name, ":", content.path)
-	}
-}
-
-func main() {
-	img1 := DisplayContent{"img", "/bin/img1", "img1", 5}
-	img2 := DisplayContent{"img", "/bin/img2", "img2", 5}
-	img3 := DisplayContent{"img", "/bin/img3", "img3", 5}
-	img4 := DisplayContent{"img", "/bin/img4", "img4", 5}
-
-	var myEventQueue eventQueue
-	myEventQueue.initQueue()
-
-	go myEventQueue.runEventQueue()
-	
-	go Display("display1", myEventQueue)
-	go Display("display2", myEventQueue)
-
-	myEventQueue.queContent(img1)
-	myEventQueue.queContent(img2)
-	myEventQueue.queContent(img3)
-
-	myEventQueue.quePriorityContent(img4)
-
-	time.Sleep(time.Second * 100)
 }
