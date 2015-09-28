@@ -127,27 +127,44 @@ func (e eventQueue) runEventQueue() {
                  * prioritised then the new content and last the content already
                  * shown
                  */
-		if len(e.priorityContent) > 0 {
-			currentContent  = e.priorityContent[0]
-			e.priorityContent = e.priorityContent[1:]
-		} else if len(e.content) > 0 {
-			currentContent =  e.content[0]
-			e.content = e.content[1:]
-		} else if len(e.shownContent) > 0 {
-			currentContent = e.shownContent[0]
-			e.shownContent = e.shownContent[1:]
-		}
+		currentContent = getNext()
 
 		// If currentContent is empty and appended to the queue kittens
 		// will die
-		if currentContent != (DisplayContent{}) {
-			e.shownContent = append(e.shownContent, currentContent)
+		sendToDisplays(currentContent)
 
-			for _, channel := range e.displayChannels {
-				channel.channel <- currentContent
-			}
-		}
 		time.Sleep(time.Second * 1)
+	}
+}
+
+/* Get the next item in the queue */
+func (e eventQueue) getNext() DisplayContent {
+	
+	if len(e.priorityContent) > 0 {
+		next  := e.priorityContent[0]
+		e.priorityContent = e.priorityContent[1:]
+	} else if len(e.content) > 0 {
+		next :=  e.content[0]
+		e.content = e.content[1:]
+	} else if len(e.shownContent) > 0 {
+		next  := e.shownContent[0]
+		e.shownContent = e.shownContent[1:]
+	}
+
+	return next
+
+}
+
+/* Append next to shownContent and then send the struct to the registred displays */
+func (e eventQueue) sendToDisplays(next DisplayContent) {
+	/* Check if the struct is empty. We dont want an empty struct being appended
+         * to the showContent slice */
+	if currentContent != (DisplayContent{}) {
+		e.shownContent = append(e.shownContent, next)
+
+		for _, channel := range e.displayChannels {
+			channel.channel <- next
+		}
 	}
 }
 
@@ -173,6 +190,10 @@ func (e eventQueue) registerDisplay() DisplayChannel{
 	e.displayChannelID++
 
 	return channel
+}
+
+func (e eventQueue) unregisterDisplay() {
+
 }
 
 /* Exit the queue */
