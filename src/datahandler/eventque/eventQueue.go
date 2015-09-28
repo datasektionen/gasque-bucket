@@ -63,7 +63,7 @@ type EventQueue struct {
 	displayChannelID int32
 }
 
-func (e *EventQueue) Init() {
+func (e *EventQueue) init() {
 	//Channel used to add new content to the queue
 	e.channels.inputChan = make(chan DisplayContent, 1024)
 	//Channel used to force push new content to the queue
@@ -79,11 +79,12 @@ func (e *EventQueue) Init() {
 	e.displayChannelID = 0 //Used to give every DisplayChannel an unique id
 }
 
-func (e EventQueue) Run() {
-	go e.runQueue()
+func (e EventQueue) Start() {
+	e.init()
+	go e.startQueue()
 }
 
-func (e EventQueue) runQueue() {
+func (e EventQueue) startQueue() {
 
 	var newContent DisplayContent
 	var currentContent DisplayContent
