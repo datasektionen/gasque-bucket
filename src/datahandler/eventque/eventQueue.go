@@ -1,6 +1,12 @@
+/* Created by: Gustav Nelson Schneider
+ */
+
 package eventque
 
-import ("time")
+//Todo: I don't like passing around struct as function arguments. Should be changed to pointers instead
+//Todo: I think i should use maps in some of the cases  i use slices at the moment
+import ("time"
+	"fmt")
 
 /* Struct containing information about the media that will be sent to
  * the displays
@@ -20,14 +26,11 @@ type EventSettings struct {
 /* Struct containing a DisplayContent channel and an unique id. Used by
  * the queue to communicate with the displays
  */
-type DisplayChannel struct {
-	id int32
-	channel chan DisplayContent
-}
+type DisplayChannelId uint32
 
-/* Close the channel contained in a DisplayChannel */
-func (dc DisplayChannel) closeChannel() {
-	close(dc.channel)
+type DisplayChannel struct {
+	Id DisplayChannelId
+	Channel chan DisplayContent
 }
 
 /* Struct containing the channels used iternaly by the EventQueue
@@ -55,12 +58,11 @@ type EventQueue struct {
 	priorityContent []DisplayContent 
 	//Content already shown which is stored to be shown again
 	shownContent    []DisplayContent
-
 	// Registred displays
-	displayChannels []DisplayChannel
+	displayChannels map[DisplayChannelId]chan DisplayContent
 	/* Every display will get an unique id incremented by 1 from the last one
 	created */
-	displayChannelID int32
+	displayChannelID DisplayChannelId
 }
 
 func (e *EventQueue) init() {
@@ -68,7 +70,7 @@ func (e *EventQueue) init() {
 	e.channels.inputChan = make(chan DisplayContent, 1024)
 	//Channel used to force push new content to the queue
 	e.channels.priorityChan = make(chan DisplayContent, 1024)
-	//e.channels.queSettingsChan        = make(chan EventSettings)
+	//e.channels.queSettingsChan = make(chan EventSettings)
 	//Channel used to register new displays which will recieve content
 	e.channels.registerDisplayChan = make(chan DisplayChannel)
 	//Channel used to unregister a display
@@ -76,19 +78,20 @@ func (e *EventQueue) init() {
 	//Channel used to send an exit signal to the queue
 	e.channels.shouldExitChan = make(chan bool)
 
+	e.displayChannels = make(map[DisplayChannelId] chan DisplayContent)
 	e.displayChannelID = 0 //Used to give every DisplayChannel an unique id
 }
 
-func (e EventQueue) Start() {
+func (e *EventQueue) Start() {
 	e.init()
 	go e.startQueue()
 }
 
 func (e EventQueue) startQueue() {
-
+	
 	var newContent DisplayContent
 	var currentContent DisplayContent
-	//closedChanIds := []int{}
+
 	for {
 		select {
 		case  shouldExit := <- e.channels.shouldExitChan:
@@ -97,7 +100,7 @@ func (e EventQueue) startQueue() {
                                  * the channels
                                  */
 				for _, channel := range e.displayChannels {
-					channel.closeChannel()
+					close(channel)
 				}
 				return
 			}
@@ -121,8 +124,14 @@ func (e EventQueue) startQueue() {
 		/* Add new display channels (there should be a way too delete
 		them to */
 		select {
-		case newChannel := <- e.channels.registerDisplayChan:
-			e.displayChannels = append(e.displayChannels, newChannel)
+		case channel := <- e.channels.registerDisplayChan:
+			e.displayChannels[channel.Id] = channel.Channel
+		default:
+		}
+
+		select {
+		case channel := <- e.channels.unregisterDisplayChan:
+			delete(e.displayChannels, channel.Id)
 		default:
 		}
 
@@ -156,7 +165,6 @@ func (e EventQueue) getNext() DisplayContent {
 	}
 
 	return next
-
 }
 
 /* Append next to shownContent and then send the struct to the registred displays */
@@ -166,7 +174,7 @@ func (e EventQueue) sendToDisplays(next DisplayContent) {
 	if next != (DisplayContent{}) {
 		e.shownContent = append(e.shownContent, next)
 		for _, channel := range e.displayChannels {
-			channel.channel <- next
+			channel <- next
 		}
 	}
 }
@@ -185,20 +193,22 @@ func (e EventQueue) QueuePriorityContent(content DisplayContent) {
  * a DisplayChannel struct will be returned containing the channel and
  * an unique ID
  */
-func (e EventQueue) RegisterDisplay() DisplayChannel{
+
+func (e *EventQueue) RegisterDisplay() DisplayChannel{
 	c := make(chan DisplayContent)
 	channel := DisplayChannel{e.displayChannelID, c}
+	fmt.Println(e.channels.registerDisplayChan)
 	e.channels.registerDisplayChan <- channel
-
 	e.displayChannelID++
 
 	return channel
 }
-
-func (e EventQueue) UnregisterDisplay() {
+/* This should be called when a display is closed */
+func (e EventQueue) UnRegisterDisplay(dispChan DisplayChannel) {
+	e.channels.unregisterDisplayChan <- dispChan
 }
 
 /* Exit the queue */
-func (e EventQueue) Exit() {
+func (e *EventQueue) Exit() {
 	e.channels.shouldExitChan <- true
 }
