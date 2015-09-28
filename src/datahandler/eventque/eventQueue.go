@@ -1,16 +1,15 @@
-package datahandler.eventque
+package eventque
 
-import ("fmt"
-	"time")
+import ("time")
 
 /* Struct containing information about the media that will be sent to
  * the displays
  */
 type DisplayContent struct {
-	fileType string
-	path string
-	desc string
-	duration int //How long is the content intendet to be shown
+	FileType string
+	Path string
+	Desc string
+	Duration int //How long is the content intendet to be shown
 }
 
 //Not used at the moment
@@ -31,7 +30,7 @@ func (dc DisplayChannel) closeChannel() {
 	close(dc.channel)
 }
 
-/* Struct containing the channels used iternaly by the eventQueue
+/* Struct containing the channels used iternaly by the EventQueue
  * to communicate with the outside world
  */
 type EventQueChannels struct {
@@ -44,10 +43,10 @@ type EventQueChannels struct {
 	shouldExitChan        chan bool
 }
 
-/* The eventQueue
+/* The EventQueue
  *
  */
-type eventQueue struct {
+type EventQueue struct {
 	//Struct holding all the channels used to communicate with other threads
 	channels EventQueChannels
 	//Content not already shown
@@ -64,23 +63,27 @@ type eventQueue struct {
 	displayChannelID int32
 }
 
-func (e *eventQueue) initQueue() {
+func (e *EventQueue) Init() {
 	//Channel used to add new content to the queue
-	e.channels.inputChan             = make(chan DisplayContent, 1024)
+	e.channels.inputChan = make(chan DisplayContent, 1024)
 	//Channel used to force push new content to the queue
-	e.channels.priorityChan          = make(chan DisplayContent, 1024)
+	e.channels.priorityChan = make(chan DisplayContent, 1024)
 	//e.channels.queSettingsChan        = make(chan EventSettings)
 	//Channel used to register new displays which will recieve content
-	e.channels.registerDisplayChan   = make(chan DisplayChannel)
+	e.channels.registerDisplayChan = make(chan DisplayChannel)
 	//Channel used to unregister a display
 	e.channels.unregisterDisplayChan = make(chan DisplayChannel)
 	//Channel used to send an exit signal to the queue
-	e.channels.shouldExitChan        = make(chan bool)
+	e.channels.shouldExitChan = make(chan bool)
 
 	e.displayChannelID = 0 //Used to give every DisplayChannel an unique id
 }
 
-func (e eventQueue) runEventQueue() {
+func (e EventQueue) Run() {
+	go e.runQueue()
+}
+
+func (e EventQueue) runQueue() {
 
 	var newContent DisplayContent
 	var currentContent DisplayContent
@@ -95,7 +98,6 @@ func (e eventQueue) runEventQueue() {
 				for _, channel := range e.displayChannels {
 					channel.closeChannel()
 				}
-
 				return
 			}
 		default:
@@ -127,27 +129,28 @@ func (e eventQueue) runEventQueue() {
                  * prioritised then the new content and last the content already
                  * shown
                  */
-		currentContent = getNext()
+		currentContent = e.getNext()
 
 		// If currentContent is empty and appended to the queue kittens
 		// will die
-		sendToDisplays(currentContent)
+		e.sendToDisplays(currentContent)
 
 		time.Sleep(time.Second * 1)
 	}
 }
 
 /* Get the next item in the queue */
-func (e eventQueue) getNext() DisplayContent {
+func (e EventQueue) getNext() DisplayContent {
 	
+	var next DisplayContent
 	if len(e.priorityContent) > 0 {
-		next  := e.priorityContent[0]
+		next  = e.priorityContent[0]
 		e.priorityContent = e.priorityContent[1:]
 	} else if len(e.content) > 0 {
-		next :=  e.content[0]
+		next =  e.content[0]
 		e.content = e.content[1:]
 	} else if len(e.shownContent) > 0 {
-		next  := e.shownContent[0]
+		next  = e.shownContent[0]
 		e.shownContent = e.shownContent[1:]
 	}
 
@@ -156,12 +159,11 @@ func (e eventQueue) getNext() DisplayContent {
 }
 
 /* Append next to shownContent and then send the struct to the registred displays */
-func (e eventQueue) sendToDisplays(next DisplayContent) {
+func (e EventQueue) sendToDisplays(next DisplayContent) {
 	/* Check if the struct is empty. We dont want an empty struct being appended
          * to the showContent slice */
-	if currentContent != (DisplayContent{}) {
+	if next != (DisplayContent{}) {
 		e.shownContent = append(e.shownContent, next)
-
 		for _, channel := range e.displayChannels {
 			channel.channel <- next
 		}
@@ -169,12 +171,12 @@ func (e eventQueue) sendToDisplays(next DisplayContent) {
 }
 
 /* Add content to the queue */
-func (e eventQueue) queContent(content DisplayContent) {
+func (e EventQueue) QueueContent(content DisplayContent) {
 	e.channels.inputChan <- content
 }
 
 /* Force push content to the queue. Mainly intented for admins */
-func (e eventQueue) quePriorityContent(content DisplayContent) {
+func (e EventQueue) QueuePriorityContent(content DisplayContent) {
 	e.channels.priorityChan <- content
 }
 
@@ -182,7 +184,7 @@ func (e eventQueue) quePriorityContent(content DisplayContent) {
  * a DisplayChannel struct will be returned containing the channel and
  * an unique ID
  */
-func (e eventQueue) registerDisplay() DisplayChannel{
+func (e EventQueue) RegisterDisplay() DisplayChannel{
 	c := make(chan DisplayContent)
 	channel := DisplayChannel{e.displayChannelID, c}
 	e.channels.registerDisplayChan <- channel
@@ -192,11 +194,10 @@ func (e eventQueue) registerDisplay() DisplayChannel{
 	return channel
 }
 
-func (e eventQueue) unregisterDisplay() {
-
+func (e EventQueue) UnregisterDisplay() {
 }
 
 /* Exit the queue */
-func (e eventQueue) exit() {
+func (e EventQueue) Exit() {
 	e.channels.shouldExitChan <- true
 }
