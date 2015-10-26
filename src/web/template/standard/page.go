@@ -8,13 +8,11 @@ Edited by:
 package main
 
 import (
-	server "./web/server"
-	_ "./web/pages" // Loads all the pages 
-	
+	"html/template"
 )
 
 
-func main(){
+func make(){
 	
 	server.Start()
 	
