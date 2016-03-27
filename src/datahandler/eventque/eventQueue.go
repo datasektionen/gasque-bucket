@@ -86,3 +86,24 @@ func (e *EventQueue) Top() *DisplayContent {
 	}
 	return e.head.data
 }
+
+func (e *EventQueue) GetContent() []*DisplayContent {
+	content := make([]*DisplayContent, e.Size())
+	index := 0
+
+	temp := e.prioHead
+	for temp != nil {
+		content[index] = temp.data
+		index++
+		temp = temp.next
+	}
+
+	temp = e.head
+	for temp != nil {
+		content[index] = temp.data
+		index++
+		temp = temp.next
+	}
+
+	return content
+}
