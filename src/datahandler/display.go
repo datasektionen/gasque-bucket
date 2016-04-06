@@ -1,9 +1,9 @@
-package display
+package datahandler
 
 import (
+	"fmt"
 	"net/http"
 
-	eq "./../eventque"
 	"github.com/gorilla/websocket"
 )
 
@@ -16,16 +16,16 @@ var upgrader = websocket.Upgrader{
 }
 
 type Display struct {
-	ContentChan chan *eq.Content
+	ContentChan chan *Content
 	ConnClosed  chan bool
 	DisplayID   int
 	RemoteAddr  string
 }
 
 //New returns a pointer to a newly created Display
-func New(id int) *Display {
+func NewDisplay(id int) *Display {
 	return &Display{
-		ContentChan: make(chan *eq.Content),
+		ContentChan: make(chan *Content),
 		ConnClosed:  make(chan bool),
 		DisplayID:   id,
 		RemoteAddr:  "",
@@ -36,20 +36,24 @@ func New(id int) *Display {
 //Handle do
 func (d *Display) Handle(w http.ResponseWriter, r *http.Request) error {
 
-	content := make(chan *eq.Content, 10)
+	d.RemoteAddr = r.RemoteAddr
 	conn, err := upgrader.Upgrade(w, r, nil)
+	_ = conn
 	if err != nil {
-		return nil, err
+		return err
 	}
 	//The go routine should close when the conection is closed and parent should be
 	//notified
+	fmt.Println("Sending data to client......")
 	go func() {
 		for {
 			select {
-			case c := <-content:
-				err = conn.WriteMessage(
-					websocket.TextMessage,
-					[]byte(c.Path))
+			case c := <-d.ContentChan:
+				if conn != nil && c != nil {
+					err = conn.WriteMessage(
+						websocket.TextMessage,
+						[]byte(c.Path))
+				}
 				if err != nil {
 					//handle error
 				}
