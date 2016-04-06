@@ -1,43 +1,48 @@
 package datahandler
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 type Event struct {
-	Displays      []*Display
-	EventID       int
-	AddDisplay    chan *Display
-	AddContent    chan *Content
-	AddPriority   chan *Content
-	RemoveContent chan int
+	EventID int
+
+	displays          []*display
+	addDisplayChan    chan *display
+	addContentChan    chan *Content
+	addPriorityChan   chan *Content
+	removeContentChan chan int
 
 	queue *EventQueue
 }
 
+//NewEvent creates and returns a pointer to an Event
 func NewEvent(id int) *Event {
-	return &Event{
-		EventID:       id,
-		AddDisplay:    make(chan *Display),
-		AddContent:    make(chan *Content),
-		AddPriority:   make(chan *Content),
-		RemoveContent: make(chan int),
-		queue:         NewEventQueue(),
-	}
-}
 
-func (e *Event) Run() {
+	e := Event{
+		EventID:           id,
+		addDisplayChan:    make(chan *display),
+		addContentChan:    make(chan *Content),
+		addPriorityChan:   make(chan *Content),
+		removeContentChan: make(chan int),
+		queue:             NewEventQueue(),
+	}
+
 	go func() {
 		wait := time.Second
 		var next *Content
 		for {
 			select {
-			case d := <-e.AddDisplay:
-				e.Displays = append(e.Displays, d)
+			case d := <-e.addDisplayChan:
+				e.displays = append(e.displays, d)
+				//send the current image to the display connected
 				if next != nil {
 					d.ContentChan <- next
 				}
-			case c := <-e.AddContent:
+			case c := <-e.addContentChan:
 				e.queue.Push(c)
-			case c := <-e.AddPriority:
+			case c := <-e.addPriorityChan:
 				e.queue.PushPriority(c)
 			case <-time.After(wait):
 				next = e.queue.Next()
@@ -49,9 +54,36 @@ func (e *Event) Run() {
 			}
 		}
 	}()
+
+	return &e
 }
 func (e *Event) sendToDisplays(content *Content) {
-	for _, disp := range e.Displays {
+	for _, disp := range e.displays {
 		disp.ContentChan <- content
 	}
+}
+
+//AddDisplay will create a new display with the id specified.
+func (e *Event) AddDisplay(id int, w http.ResponseWriter, r *http.Request) error {
+	d, err := newDisplay(id, w, r)
+	if err != nil {
+		return err
+	}
+	e.addDisplayChan <- d
+	return nil
+}
+
+//AddContent adds content to the end of the queue if priority is true
+//the content will be prioritised.
+func (e *Event) AddContent(c *Content, priority bool) {
+	if priority {
+		e.addPriorityChan <- c
+	} else {
+		e.addContentChan <- c
+	}
+}
+
+//RemoveContent removes contet with specified id.
+func (e *Event) RemoveContent(id int) {
+
 }
