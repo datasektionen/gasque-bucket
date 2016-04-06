@@ -5,13 +5,13 @@ Queue used for holding DisplayContent items. The EventQueue is using two queues
 with two different levels of priority. The items in the priorityQueue is always
 chosen first.
 */
-package eventque
+package datahandler
 
 import "time"
 
 //DisplayContent is used to hold information about the objects to be displayed.
 type Content struct {
-	id       int
+	ID       int
 	FileType int
 	Path     string
 	Desc     string
@@ -105,7 +105,7 @@ func (e *EventQueue) Top() *Content {
 
 //DeleteContent removes content with a given id.
 func (e *EventQueue) DeleteContent(id int) error {
-
+	return nil
 }
 
 //GetContent returns a pointer to a slice containing all the content in the queue
