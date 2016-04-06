@@ -1,4 +1,4 @@
-package display
+package datahandler
 
 import "time"
 
@@ -10,42 +10,48 @@ type Event struct {
 	AddPriority   chan *Content
 	RemoveContent chan int
 
-	queue EventQueue
+	queue *EventQueue
 }
 
-func New(id int) *Event {
+func NewEvent(id int) *Event {
 	return &Event{
-		Displays:   new([]*Display),
-		EventID:    id,
-		AddDisplay: make(chan *Display),
+		EventID:       id,
+		AddDisplay:    make(chan *Display),
+		AddContent:    make(chan *Content),
+		AddPriority:   make(chan *Content),
+		RemoveContent: make(chan int),
+		queue:         NewEventQueue(),
 	}
 }
 
-func (d *event) Run() error {
+func (e *Event) Run() {
 	go func() {
+		wait := time.Second
+		var next *Content
 		for {
-			wait := time.Second
-
 			select {
-			case d := <-d.AddDisplay:
-				append(Displays, d)
-			case c := <-d.AddContent:
-				d.queue.Push(c)
-			case c := <-d.AddPriority:
-				d.queue.PushPriority(c)
-			case <-time.After(wait):
-				next := queue.Next()
-				queue.Push(next)
+			case d := <-e.AddDisplay:
+				e.Displays = append(e.Displays, d)
 				if next != nil {
-					sendToDisplays(next)
+					d.ContentChan <- next
+				}
+			case c := <-e.AddContent:
+				e.queue.Push(c)
+			case c := <-e.AddPriority:
+				e.queue.PushPriority(c)
+			case <-time.After(wait):
+				next = e.queue.Next()
+				e.queue.Push(next)
+				if next != nil {
+					e.sendToDisplays(next)
 					wait = next.Duration
 				}
 			}
 		}
 	}()
 }
-func (d *event) sendToDisplays(content *Content) {
-	for id, disp := range d.Displays {
+func (e *Event) sendToDisplays(content *Content) {
+	for _, disp := range e.Displays {
 		disp.ContentChan <- content
 	}
 }
