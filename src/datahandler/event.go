@@ -13,6 +13,7 @@ type Event struct {
 	addContentChan    chan *Content
 	addPriorityChan   chan *Content
 	removeContentChan chan int
+	closeEventChan    chan struct{}
 
 	queue *EventQueue
 }
@@ -26,6 +27,7 @@ func NewEvent(id int) *Event {
 		addContentChan:    make(chan *Content),
 		addPriorityChan:   make(chan *Content),
 		removeContentChan: make(chan int),
+		closeEventChan:    make(chan struct{}),
 		queue:             NewEventQueue(),
 	}
 
@@ -44,6 +46,11 @@ func NewEvent(id int) *Event {
 				e.queue.Push(c)
 			case c := <-e.addPriorityChan:
 				e.queue.PushPriority(c)
+			case <-e.closeEventChan:
+				for _, d := range e.displays {
+					d.CloseDisplayChan <- struct{}{}
+				}
+				return
 			case <-time.After(wait):
 				next = e.queue.Next()
 				e.queue.Push(next)
@@ -86,4 +93,8 @@ func (e *Event) AddContent(c *Content, priority bool) {
 //RemoveContent removes contet with specified id.
 func (e *Event) RemoveContent(id int) {
 
+}
+
+func (e *Event) Close() {
+	e.closeEventChan <- struct{}{}
 }
