@@ -15,20 +15,22 @@ var upgrader = websocket.Upgrader{
 }
 
 type display struct {
-	ContentChan chan *Content
-	ConnClosed  chan bool
-	DisplayID   int
-	RemoteAddr  string
+	ContentChan      chan *Content
+	ConnClosed       chan struct{}
+	CloseDisplayChan chan struct{}
+	DisplayID        int
+	RemoteAddr       string
 }
 
 //NewDisplay returns a pointer to a newly created Display
 func newDisplay(id int, w http.ResponseWriter, r *http.Request) (*display, error) {
 
 	d := display{
-		ContentChan: make(chan *Content),
-		ConnClosed:  make(chan bool),
-		DisplayID:   id,
-		RemoteAddr:  "",
+		ContentChan:      make(chan *Content),
+		ConnClosed:       make(chan struct{}),
+		CloseDisplayChan: make(chan struct{}),
+		DisplayID:        id,
+		RemoteAddr:       "",
 	}
 
 	d.RemoteAddr = r.RemoteAddr
@@ -51,6 +53,8 @@ func newDisplay(id int, w http.ResponseWriter, r *http.Request) (*display, error
 				if err != nil {
 					//handle error
 				}
+			case <-d.CloseDisplayChan:
+				return
 			}
 		}
 	}()
